@@ -1,5 +1,6 @@
 import argparse
 import numpy as np
+import os
 import skimage.io as skio
 
 from PIL import Image
@@ -19,7 +20,7 @@ args = parser.parse_args()
 
 
 def compress_img_jpg(file_dir, file_name, output_dir, quality):
-    src_img = Image.open(filepath)
+    src_img = Image.open(file_dir + file_name)
     file_name = file_name[:file_name.index('.')] + '.jpg'
     src_img.save(output_dir + file_name, quality=quality)
 
@@ -34,6 +35,13 @@ def main():
     if not os.path.exists(args.output):
         os.mkdir(args.output)
 
+    # Check for directory ending slash
+    if args.filepath[-1] != '/':
+        args.filepath += '/'
+    if args.output[-1] != '/':
+        args.output += '/'
+
+    # Choose between two possible compressions
     if args.jpg:
         fn = compress_img_jpg
     else:
@@ -41,7 +49,7 @@ def main():
 
     filenames = os.listdir(args.filepath)
     for file_name in filenames:
-        fn(args.filepath, file_name, args.output, args.quality)
+        fn(args.filepath, file_name, args.output, args.quality[0])
 
 if __name__ == '__main__':
     main()
