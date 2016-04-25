@@ -61,7 +61,6 @@ def image_from_patches(patches, stride):
             # Overlapping region from curr_idx to prev_dx
             overlap1 = stitched_img[curr_idx:prev_idx, :, :]
             overlap2 = stitched_rows[r][0:(prev_idx-curr_idx), :, :]
-            print overlap1.shape, overlap2.shape
             stitched_img[curr_idx:prev_idx, :, :] = 0.5 * (overlap1 + overlap2)
             stitched_img[prev_idx:(end_idx), :, :] = stitched_rows[r][(prev_idx-curr_idx):, :, :]
         else:
