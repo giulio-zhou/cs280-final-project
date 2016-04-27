@@ -1,4 +1,8 @@
 #!/bin/bash
+# $1 - path to directory containing images to be compressed
+# $2 - JPG quality [0-100]
+# $3 - image_root
+# $4 - [train, val, test], choose one
 
 mkdir $3/$4
 mkdir $3/$4/compressed_img
