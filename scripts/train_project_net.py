@@ -161,14 +161,14 @@ def srcnn(data, labels=None, train=False, param=learned_param,
     conv_kwargs = dict(param=param, train=train)
     n.conv1, n.relu1 = conv_relu(n.data, 9, 64, pad=4, stride=1, **conv_kwargs)
     n.conv2, n.relu2 = conv_relu(n.relu1, 1, 32, pad=0, group=1, **conv_kwargs)
-    n.conv3, _unused_= conv_relu(n.relu2, 5, 1, pad=2, **conv_kwargs)
+    n.conv3, _unused_= conv_relu(n.relu2, 5, 3, pad=2, **conv_kwargs)
     preds = n.conv3
     if not train:
         # Compute the per-label probabilities at test/inference time.
         preds = n.probs = L.Softmax(n.conv3)
     if with_labels:
         n.label = labels
-        n.loss = L.EuclideanLossLayer(preds, n.label)
+        n.loss = L.EuclideanLoss(preds, n.label)
     else:
         n.ignored_label = labels
         n.silence_label = L.Silence(n.ignored_label, ntop=0)
@@ -197,7 +197,7 @@ def miniplaces_net(source, train=False, with_labels=True):
                        with_labels=with_labels)
 
 def srcnn_net(source, target, train=False, with_labels=True):
-    transform_param = dict(mirror=train, crop_size=args.crop)
+    transform_param = dict(scale=0.0039215684)
     batch_size = args.batch if train else 100
     source_images, source_labels = L.ImageData(transform_param=transform_param,
         source=source, root_folder=args.image_root,
@@ -306,6 +306,7 @@ def train_net(input_net=srcnn_net, with_val_net=False):
     solver_file = miniplaces_solver(train_net_file, val_net_file)
     solver = caffe.get_solver(solver_file)
     outputs = sorted(solver.net.outputs)
+    outputs = [outputs[-1]]
     def str_output(output):
         value = solver.net.blobs[output].data
         if output.startswith('accuracy'):
