@@ -9,12 +9,12 @@ import tempfile
 import time
 
 parser = argparse.ArgumentParser(
-    description='Train and evaluate a net on the MIT mini-places dataset.')
-parser.add_argument('--image_root', default='./images/',
+    description='Train and evaluate a net on Set5 and Set14 png to jpg datasets.')
+parser.add_argument('--image_root', default='./data/',
     help='Directory where images are stored')
-parser.add_argument('--crop', type=int, default=96,
+parser.add_argument('--crop', type=int, default=33,
     help=('The edge length of the random image crops'
-          '(defaults to 96 for 96x96 crops)'))
+          '(defaults to 33 for 33x33 crops)'))
 parser.add_argument('--disp', type=int, default=10,
     help='Print loss/accuracy every --disp training iterations')
 parser.add_argument('--snapshot_dir', default='./snapshot',
@@ -159,14 +159,29 @@ def srcnn(data, labels=None, train=False, param=learned_param,
     n = caffe.NetSpec()
     n.data = data
     conv_kwargs = dict(param=param, train=train)
-    n.conv1, n.relu1 = conv_relu(n.data, 9, 96, pad=4, stride=1, **conv_kwargs)
-    n.conv2, n.relu2 = conv_relu(n.relu1, 1, 256, pad=0, group=1, **conv_kwargs)
-    n.conv3, _unused_= conv_relu(n.relu2, 5, 384, pad=2, **conv_kwargs)
+    n.conv1, n.relu1 = conv_relu(n.data, 9, 64, pad=4, stride=1, **conv_kwargs)
+    n.conv2, n.relu2 = conv_relu(n.relu1, 1, 32, pad=0, group=1, **conv_kwargs)
+    n.conv3, _unused_= conv_relu(n.relu2, 5, 1, pad=2, **conv_kwargs)
     preds = n.conv3
+    if not train:
+        # Compute the per-label probabilities at test/inference time.
+        preds = n.probs = L.Softmax(n.conv3)
+    if with_labels:
+        n.label = labels
+        n.loss = L.EuclideanLossLayer(preds, n.label)
+    else:
+        n.ignored_label = labels
+        n.silence_label = L.Silence(n.ignored_label, ntop=0)
     return to_tempfile(str(n.to_proto()))
 
 def get_split(split):
-    filename = './development_kit/data/%s.txt' % split
+    filename = args.image_root + "/{}/{}_img.txt".format(split, split)
+    if not os.path.exists(filename):
+        raise IOError('Split data file not found: %s' % split)
+    return filename
+
+def get_target_split(split):
+    filename = args.image_root + "/{}/{}_label.txt".format(split, split)
     if not os.path.exists(filename):
         raise IOError('Split data file not found: %s' % split)
     return filename
@@ -180,6 +195,18 @@ def miniplaces_net(source, train=False, with_labels=True):
         batch_size=batch_size, ntop=2)
     return minialexnet(data=places_data, labels=places_labels, train=train,
                        with_labels=with_labels)
+
+def srcnn_net(source, target, train=False, with_labels=True):
+    transform_param = dict(mirror=train, crop_size=args.crop)
+    batch_size = args.batch if train else 100
+    source_images, source_labels = L.ImageData(transform_param=transform_param,
+        source=source, root_folder=args.image_root,
+        batch_size=batch_size, ntop=2)
+    target_images, target_labels = L.ImageData(transform_param=transform_param,
+        source=target, root_folder=args.image_root,
+        batch_size=batch_size, ntop=2)
+    return srcnn(data=source_images, labels=target_images, train=train,
+                 with_labels=with_labels)
 
 def snapshot_prefix():
     return os.path.join(args.snapshot_dir, args.snapshot_prefix)
@@ -264,14 +291,16 @@ def miniplaces_solver(train_net_path, test_net_path=None):
 
     return to_tempfile(str(s))
 
-def train_net(with_val_net=False):
-    train_net_file = miniplaces_net(get_split('train'), train=True)
+def train_net(input_net=srcnn_net, with_val_net=False):
+    train_net_file = input_net(get_split('train'),
+                               get_target_split('train'), train=True)
     # Set with_val_net=True to test during training.
     # Environment variable GLOG_minloglevel should be set to 0 to display
     # Caffe output in this case; otherwise, the test result will not be
     # displayed.
     if with_val_net:
-        val_net_file = miniplaces_net(get_split('val'), train=False)
+        val_net_file = input_net(get_split('val'),
+                                 get_target_split('val'), train=False)
     else:
         val_net_file = None
     solver_file = miniplaces_solver(train_net_file, val_net_file)
@@ -307,7 +336,7 @@ def train_net(with_val_net=False):
     disp_outputs(args.iters)
     solver.net.save(snapshot_at_iteration(args.iters))
 
-def eval_net(split, K=5):
+def eval_net(split, input_net=srcnn_net, K=5):
     print 'Running evaluation for split:', split
     filenames = []
     labels = []
@@ -325,7 +354,7 @@ def eval_net(split, K=5):
     else:
         # create file with 'dummy' labels (all 0s)
         split_file = to_tempfile(''.join('%s 0\n' % name for name in filenames))
-    test_net_file = miniplaces_net(split_file, train=False, with_labels=False)
+    test_net_file = input_net(split_file, train=False, with_labels=False)
     weights_file = snapshot_at_iteration(args.iters)
     net = caffe.Net(test_net_file, weights_file, caffe.TEST)
     top_k_predictions = np.zeros((len(filenames), K), dtype=np.int32)

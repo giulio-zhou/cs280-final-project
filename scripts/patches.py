@@ -116,5 +116,8 @@ if __name__ == '__main__':
         save_dir = ('./' + os.path.splitext(img_file)[0]) if len(sys.argv) == 2 else sys.argv[2]
         print save_dir
         img = sk.img_as_float(skio.imread(img_file))
+        # Make sure black and white images have a third dimension
+        if len(img.shape) == 2:
+            img = np.dstack((img, img, img))
         patches = image_to_patches(img, 33, 14)
         save_patches(patches, save_dir)
