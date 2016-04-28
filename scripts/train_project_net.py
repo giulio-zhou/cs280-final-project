@@ -196,15 +196,17 @@ def miniplaces_net(source, train=False, with_labels=True):
     return minialexnet(data=places_data, labels=places_labels, train=train,
                        with_labels=with_labels)
 
-def srcnn_net(source, target, train=False, with_labels=True):
+def srcnn_net(source, target=None, train=False, with_labels=True):
     transform_param = dict(scale=0.0039215684)
     batch_size = args.batch if train else 100
     source_images, source_labels = L.ImageData(transform_param=transform_param,
         source=source, root_folder=args.image_root,
         batch_size=batch_size, ntop=2)
-    target_images, target_labels = L.ImageData(transform_param=transform_param,
-        source=target, root_folder=args.image_root,
-        batch_size=batch_size, ntop=2)
+    target_images = None
+    if target:
+        target_images, target_labels = L.ImageData(transform_param=transform_param,
+            source=target, root_folder=args.image_root,
+            batch_size=batch_size, ntop=2)
     return srcnn(data=source_images, labels=target_images, train=train,
                  with_labels=with_labels)
 
@@ -306,6 +308,7 @@ def train_net(input_net=srcnn_net, with_val_net=False):
     solver_file = miniplaces_solver(train_net_file, val_net_file)
     solver = caffe.get_solver(solver_file)
     outputs = sorted(solver.net.outputs)
+    # Want to just display the loss
     outputs = [outputs[-1]]
     def str_output(output):
         value = solver.net.blobs[output].data
@@ -342,6 +345,7 @@ def eval_net(split, input_net=srcnn_net, K=5):
     filenames = []
     labels = []
     split_file = get_split(split)
+    target_split_file = None
     with open(split_file, 'r') as f:
         for line in f.readlines():
             parts = line.split()
@@ -349,46 +353,48 @@ def eval_net(split, input_net=srcnn_net, K=5):
             filenames.append(parts[0])
             if len(parts) > 1:
                 labels.append(int(parts[1]))
-    known_labels = (len(labels) > 0)
+    known_labels = (split != 'test')
     if known_labels:
         assert len(labels) == len(filenames)
+        target_split = get_target_split(split)
     else:
         # create file with 'dummy' labels (all 0s)
         split_file = to_tempfile(''.join('%s 0\n' % name for name in filenames))
-    test_net_file = input_net(split_file, train=False, with_labels=False)
+    test_net_file = input_net(split_file, target_split_file,
+                              train=False, with_labels=False)
     weights_file = snapshot_at_iteration(args.iters)
     net = caffe.Net(test_net_file, weights_file, caffe.TEST)
-    top_k_predictions = np.zeros((len(filenames), K), dtype=np.int32)
-    if known_labels:
-        correct_label_probs = np.zeros(len(filenames))
+    # top_k_predictions = np.zeros((len(filenames), K), dtype=np.int32)
+    # if known_labels:
+    #     correct_label_probs = np.zeros(len(filenames))
+    loss = 0
     offset = 0
     while offset < len(filenames):
-        probs = net.forward()['probs']
-        for prob in probs:
-            top_k_predictions[offset] = (-prob).argsort()[:K]
-            if known_labels:
-                correct_label_probs[offset] = prob[labels[offset]]
+        net_forward = net.forward()
+        imgs = net_forward['conv3']
+        loss += net_forward['loss']
+        for img in imgs:
             offset += 1
             if offset >= len(filenames):
                 break
     if known_labels:
-        def accuracy_at_k(preds, labels, k):
-            assert len(preds) == len(labels)
-            num_correct = sum(l in p[:k] for p, l in zip(preds, labels))
-            return num_correct / len(preds)
-        for k in [1, K]:
-            accuracy = 100 * accuracy_at_k(top_k_predictions, labels, k)
-            print '\tAccuracy at %d = %4.2f%%' % (k, accuracy)
+        # def accuracy_at_k(preds, labels, k):
+        #     assert len(preds) == len(labels)
+        #     num_correct = sum(l in p[:k] for p, l in zip(preds, labels))
+        #     return num_correct / len(preds)
+        # for k in [1, K]:
+        #     accuracy = 100 * accuracy_at_k(top_k_predictions, labels, k)
+        #     print '\tAccuracy at %d = %4.2f%%' % (k, accuracy)
         cross_ent_error = -np.log(correct_label_probs).mean()
         print '\tSoftmax cross-entropy error = %.4f' % (cross_ent_error, )
     else:
         print 'Not computing accuracy; ground truth unknown for split:', split
-    filename = 'top_%d_predictions.%s.csv' % (K, split)
-    with open(filename, 'w') as f:
-        f.write(','.join(['image'] + ['label%d' % i for i in range(1, K+1)]))
-        f.write('\n')
-        f.write(''.join('%s,%s\n' % (image, ','.join(str(p) for p in preds))
-                        for image, preds in zip(filenames, top_k_predictions)))
+    # filename = 'top_%d_predictions.%s.csv' % (K, split)
+    # with open(filename, 'w') as f:
+    #     f.write(','.join(['image'] + ['label%d' % i for i in range(1, K+1)]))
+    #     f.write('\n')
+    #     f.write(''.join('%s,%s\n' % (image, ','.join(str(p) for p in preds))
+    #                     for image, preds in zip(filenames, top_k_predictions)))
     print 'Predictions for split %s dumped to: %s' % (split, filename)
 
 if __name__ == '__main__':
