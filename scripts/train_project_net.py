@@ -5,6 +5,7 @@ from __future__ import division
 import argparse
 import numpy as np
 import os
+import skimage.io as skio
 import tempfile
 import time
 
@@ -163,15 +164,12 @@ def srcnn(data, labels=None, train=False, param=learned_param,
     n.conv2, n.relu2 = conv_relu(n.relu1, 1, 32, pad=0, group=1, **conv_kwargs)
     n.conv3, _unused_= conv_relu(n.relu2, 5, 3, pad=2, **conv_kwargs)
     preds = n.conv3
-    if not train:
-        # Compute the per-label probabilities at test/inference time.
-        preds = n.probs = L.Softmax(n.conv3)
     if with_labels:
         n.label = labels
         n.loss = L.EuclideanLoss(preds, n.label)
-    else:
-        n.ignored_label = labels
-        n.silence_label = L.Silence(n.ignored_label, ntop=0)
+    #  else:
+    #      n.ignored_label = labels
+    #      n.silence_label = L.Silence(n.ignored_label, ntop=0)
     return to_tempfile(str(n.to_proto()))
 
 def get_split(split):
@@ -208,7 +206,7 @@ def srcnn_net(source, target=None, train=False, with_labels=True):
             source=target, root_folder=args.image_root,
             batch_size=batch_size, ntop=2)
     return srcnn(data=source_images, labels=target_images, train=train,
-                 with_labels=with_labels)
+                 with_labels=(target != None))
 
 def snapshot_prefix():
     return os.path.join(args.snapshot_dir, args.snapshot_prefix)
@@ -356,24 +354,31 @@ def eval_net(split, input_net=srcnn_net, K=5):
     known_labels = (split != 'test')
     if known_labels:
         assert len(labels) == len(filenames)
-        target_split = get_target_split(split)
+        target_split_file = get_target_split(split)
     else:
         # create file with 'dummy' labels (all 0s)
         split_file = to_tempfile(''.join('%s 0\n' % name for name in filenames))
     test_net_file = input_net(split_file, target_split_file,
-                              train=False, with_labels=False)
+                              train=False, with_labels=known_labels)
     weights_file = snapshot_at_iteration(args.iters)
     net = caffe.Net(test_net_file, weights_file, caffe.TEST)
     # top_k_predictions = np.zeros((len(filenames), K), dtype=np.int32)
     # if known_labels:
     #     correct_label_probs = np.zeros(len(filenames))
+    output_dirname = os.path.join(args.image_root, 'output/' + split)
+    if not os.path.isdir(output_dirname):
+        os.makedirs(output_dirname)
     loss = 0
     offset = 0
     while offset < len(filenames):
         net_forward = net.forward()
-        imgs = net_forward['conv3']
+        imgs = net.blobs['conv3'].data
+        # imgs = net_forward['conv3']
         loss += net_forward['loss']
         for img in imgs:
+            img_filename = os.path.join(output_dirname, 'img_%d.png' % offset)
+            img = np.clip(img, 0, 1)
+            skio.imsave(img_filename, np.transpose(img, (1, 2, 0)))
             offset += 1
             if offset >= len(filenames):
                 break
@@ -385,8 +390,9 @@ def eval_net(split, input_net=srcnn_net, K=5):
         # for k in [1, K]:
         #     accuracy = 100 * accuracy_at_k(top_k_predictions, labels, k)
         #     print '\tAccuracy at %d = %4.2f%%' % (k, accuracy)
-        cross_ent_error = -np.log(correct_label_probs).mean()
-        print '\tSoftmax cross-entropy error = %.4f' % (cross_ent_error, )
+        # cross_ent_error = -np.log(correct_label_probs).mean()
+        # print '\tSoftmax cross-entropy error = %.4f' % (cross_ent_error, )
+        print 'Total loss: %f (avg loss per photo)' % (float(loss) / offset)
     else:
         print 'Not computing accuracy; ground truth unknown for split:', split
     # filename = 'top_%d_predictions.%s.csv' % (K, split)
@@ -395,11 +401,11 @@ def eval_net(split, input_net=srcnn_net, K=5):
     #     f.write('\n')
     #     f.write(''.join('%s,%s\n' % (image, ','.join(str(p) for p in preds))
     #                     for image, preds in zip(filenames, top_k_predictions)))
-    print 'Predictions for split %s dumped to: %s' % (split, filename)
+    # print 'Predictions for split %s dumped to: %s' % (split, filename)
 
 if __name__ == '__main__':
     print 'Training net...\n'
-    train_net()
+    # train_net()
 
     print '\nTraining complete. Evaluating...\n'
     for split in ('train', 'val', 'test'):

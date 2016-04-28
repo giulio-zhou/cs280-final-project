@@ -27,10 +27,10 @@ done
 # Copy all of the image file paths to text files
 for f in $(ls $3/$4/compressed_img)
 do
-    echo "$4/compressed_img/$f 0" >> $3/$4/train_label.txt
+    echo "$4/compressed_img/$f 0" >> $3/$4/$4_label.txt
 done
 
 for f in $(ls $3/$4/src_img)
 do
-    echo "$4/src_img/$f 0" >> $3/$4/train_img.txt
+    echo "$4/src_img/$f 0" >> $3/$4/$4_img.txt
 done
