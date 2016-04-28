@@ -4,6 +4,8 @@ import skimage.io as skio
 import sys
 import os
 
+EXTENSION = '.png'
+
 def image_to_patches(img, patch_size, stride):
     rows, cols, ch = img.shape
     patches_x = (cols - patch_size) / stride + 1
@@ -79,7 +81,7 @@ def save_patches(patches, directory):
 
     def save_helper(idx):
         y, x = idx
-        img_file = directory + '/' + str(y).zfill(y_digits) + '_' + str(x).zfill(x_digits) + '.png'
+        img_file = directory + '/' + str(y).zfill(y_digits) + '_' + str(x).zfill(x_digits) + EXTENSION
         skio.imsave(img_file, patches[y, x])
         return idx
 
@@ -101,7 +103,7 @@ def load_patches(directory):
 
     def load_helper(idx):
         y, x = idx
-        img_file = directory + '/' + str(y).zfill(y_digits) + '_' + str(x).zfill(x_digits) + '.png'
+        img_file = directory + '/' + str(y).zfill(y_digits) + '_' + str(x).zfill(x_digits) + EXTENSION
         img = sk.img_as_float(skio.imread(img_file))
         patches[y, x, :, :, :] = img
         return idx 
@@ -113,6 +115,7 @@ def load_patches(directory):
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
         img_file = sys.argv[1]
+        EXTENSION = os.path.splitext(img_file)[-1]
         save_dir = ('./' + os.path.splitext(img_file)[0]) if len(sys.argv) == 2 else sys.argv[2]
         print save_dir
         img = sk.img_as_float(skio.imread(img_file))

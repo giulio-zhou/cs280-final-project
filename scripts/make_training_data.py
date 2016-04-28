@@ -20,7 +20,10 @@ args = parser.parse_args()
 
 
 def compress_img_jpg(file_dir, file_name, output_dir, quality):
-    src_img = Image.open(file_dir + file_name)
+    try:
+        src_img = Image.open(file_dir + file_name)
+    except IOError:
+        return
     file_name = file_name[:file_name.index('.')] + '.jpg'
     src_img.save(output_dir + file_name, quality=quality)
 
