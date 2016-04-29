@@ -21,7 +21,7 @@ rm -r temp
 
 for f in $1/*
 do
-    python patches.py $f $3/$4/src_img
+    python patches.py $f $3/$4/src_img 6
 done
 
 # Copy all of the image file paths to text files

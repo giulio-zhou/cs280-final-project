@@ -160,9 +160,9 @@ def srcnn(data, labels=None, train=False, param=learned_param,
     n = caffe.NetSpec()
     n.data = data
     conv_kwargs = dict(param=param, train=train)
-    n.conv1, n.relu1 = conv_relu(n.data, 9, 64, pad=4, stride=1, **conv_kwargs)
-    n.conv2, n.relu2 = conv_relu(n.relu1, 1, 32, pad=0, group=1, **conv_kwargs)
-    n.conv3, _unused_= conv_relu(n.relu2, 5, 3, pad=2, **conv_kwargs)
+    n.conv1, n.relu1 = conv_relu(n.data, 9, 64, **conv_kwargs)
+    n.conv2, n.relu2 = conv_relu(n.relu1, 1, 32, **conv_kwargs)
+    n.conv3, _unused_= conv_relu(n.relu2, 5, 3, **conv_kwargs)
     preds = n.conv3
     if with_labels:
         n.label = labels

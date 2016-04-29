@@ -71,7 +71,7 @@ def image_from_patches(patches, stride):
     return stitched_img
 
 
-def save_patches(patches, directory):
+def save_patches(patches, directory, num_pixels_crop=0):
     if not os.path.exists(directory):
         os.makedirs(directory)
     patches_y, patches_x, _, _, _ = patches.shape
@@ -82,7 +82,11 @@ def save_patches(patches, directory):
     def save_helper(idx):
         y, x = idx
         img_file = directory + '/' + str(y).zfill(y_digits) + '_' + str(x).zfill(x_digits) + EXTENSION
-        skio.imsave(img_file, patches[y, x])
+        if num_pixels_crop > 0:
+            skio.imsave(img_file, patches[y, x][num_pixels_crop:-num_pixels_crop,
+                                                num_pixels_crop:-num_pixels_crop])
+        else:
+            skio.imsave(img_file, patches[y, x])
         return idx
 
     np.apply_along_axis(save_helper, 0, indices)
@@ -123,4 +127,7 @@ if __name__ == '__main__':
         if len(img.shape) == 2:
             img = np.dstack((img, img, img))
         patches = image_to_patches(img, 33, 14)
-        save_patches(patches, save_dir)
+        pixels_to_crop = 0
+        if len(sys.argv) > 3:
+            pixels_to_crop = int(sys.argv[3])
+        save_patches(patches, save_dir, num_pixels_crop=pixels_to_crop)
