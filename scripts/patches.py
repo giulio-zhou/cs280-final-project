@@ -95,10 +95,10 @@ def save_patches(patches, directory, num_pixels_crop=0):
 def load_patches(directory):
     files = os.listdir(directory)
     patches_y, patches_x = os.path.splitext(files[-1])[0].split('_')
-    patches_y = int(patches_y)
-    patches_x = int(patches_x)
-    y_digits = len(str(patches_y))
-    x_digits = len(str(patches_x))
+    y_digits = len(patches_y)
+    x_digits = len(patches_x)
+    patches_y = int(patches_y+1)
+    patches_x = int(patches_x+1)
     indices = np.indices((patches_y, patches_x))
 
     patch0 = skio.imread(directory + '/' + files[0])
