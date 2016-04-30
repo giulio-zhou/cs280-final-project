@@ -7,8 +7,6 @@
 mkdir $3/$4
 mkdir $3/$4/compressed_img
 mkdir $3/$4/src_img
-touch $3/$4/train_img.txt
-touch $3/$4/train_label.txt
 
 python make_training_data.py -f $1 -o temp --jpg $2
 
