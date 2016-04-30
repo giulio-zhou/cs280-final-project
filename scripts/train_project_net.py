@@ -9,6 +9,9 @@ import skimage.io as skio
 import tempfile
 import time
 
+from patches import image_from_patches
+from patches import load_patches
+
 parser = argparse.ArgumentParser(
     description='Train and evaluate a net on Set5 and Set14 png to jpg datasets.')
 parser.add_argument('--image_root', default='./data/',
@@ -342,6 +345,7 @@ def eval_net(split, input_net=srcnn_net, K=5):
     print 'Running evaluation for split:', split
     filenames = []
     labels = []
+    patch_directories = set()
     split_file = get_split(split)
     target_split_file = None
     with open(split_file, 'r') as f:
@@ -362,9 +366,6 @@ def eval_net(split, input_net=srcnn_net, K=5):
                               train=False, with_labels=known_labels)
     weights_file = snapshot_at_iteration(args.iters)
     net = caffe.Net(test_net_file, weights_file, caffe.TEST)
-    # top_k_predictions = np.zeros((len(filenames), K), dtype=np.int32)
-    # if known_labels:
-    #     correct_label_probs = np.zeros(len(filenames))
     output_dirname = os.path.join(args.image_root, 'output/' + split)
     if not os.path.isdir(output_dirname):
         os.makedirs(output_dirname)
@@ -376,32 +377,25 @@ def eval_net(split, input_net=srcnn_net, K=5):
         # imgs = net_forward['conv3']
         loss += net_forward['loss']
         for img in imgs:
-            img_filename = os.path.join(output_dirname, 'img_%d.png' % offset)
+            img_filepath = '/'.join(filenames[offset].split('/')[-2:])
+            patch_directories.add(filenames[offset].split('/')[-2])
+            img_filename = os.path.join(output_dirname, img_filepath)
             img = np.clip(img, 0, 1)
             skio.imsave(img_filename, np.transpose(img, (1, 2, 0)))
             offset += 1
             if offset >= len(filenames):
                 break
     if known_labels:
-        # def accuracy_at_k(preds, labels, k):
-        #     assert len(preds) == len(labels)
-        #     num_correct = sum(l in p[:k] for p, l in zip(preds, labels))
-        #     return num_correct / len(preds)
-        # for k in [1, K]:
-        #     accuracy = 100 * accuracy_at_k(top_k_predictions, labels, k)
-        #     print '\tAccuracy at %d = %4.2f%%' % (k, accuracy)
-        # cross_ent_error = -np.log(correct_label_probs).mean()
-        # print '\tSoftmax cross-entropy error = %.4f' % (cross_ent_error, )
         print 'Total loss: %f (avg loss per photo)' % (float(loss) / offset)
     else:
         print 'Not computing accuracy; ground truth unknown for split:', split
-    # filename = 'top_%d_predictions.%s.csv' % (K, split)
-    # with open(filename, 'w') as f:
-    #     f.write(','.join(['image'] + ['label%d' % i for i in range(1, K+1)]))
-    #     f.write('\n')
-    #     f.write(''.join('%s,%s\n' % (image, ','.join(str(p) for p in preds))
-    #                     for image, preds in zip(filenames, top_k_predictions)))
-    # print 'Predictions for split %s dumped to: %s' % (split, filename)
+
+    # Stitch together non-overlapping patches with stride 21
+    for patch_dir in patch_directories:
+        path_to_patch_dir = os.path.join(output_dirname, patch_dir)
+        patches = load_patches(path_to_patch_dir)
+        stitched_image = image_from_patches(patches, 21)
+        skio.imsave(os.path.join(output_dirname, patch_dir + '.png'), stitched_image)
 
 if __name__ == '__main__':
     print 'Training net...\n'
