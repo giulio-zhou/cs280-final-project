@@ -5,12 +5,15 @@ from __future__ import division
 import argparse
 import numpy as np
 import os
+import shutil
 import skimage.io as skio
 import tempfile
 import time
 
+from patches import image_to_patches
 from patches import image_from_patches
 from patches import load_patches
+from patches import save_patches
 
 parser = argparse.ArgumentParser(
     description='Train and evaluate a net on Set5 and Set14 png to jpg datasets.')
@@ -49,6 +52,9 @@ parser.add_argument('--cudnn', action='store_true',
     help='Use CuDNN at training time -- usually faster, but non-deterministic')
 parser.add_argument('--gpu', type=int, default=0,
     help='GPU ID to use for training and inference (-1 for CPU)')
+parser.add_argument('--reconstruct',
+    help='Specify directory of images to reconstruct'
+	 '(if provided, no evaluation or training is done')
 args = parser.parse_args()
 
 # disable most Caffe logging (unless env var $GLOG_minloglevel is already set)
@@ -345,7 +351,6 @@ def eval_net(split, input_net=srcnn_net, K=5):
     print 'Running evaluation for split:', split
     filenames = []
     labels = []
-    patch_directories = set()
     split_file = get_split(split)
     target_split_file = None
     with open(split_file, 'r') as f:
@@ -377,11 +382,12 @@ def eval_net(split, input_net=srcnn_net, K=5):
         # imgs = net_forward['conv3']
         loss += net_forward['loss']
         for img in imgs:
-            img_filepath = '/'.join(filenames[offset].split('/')[-2:])
-            patch_directories.add(filenames[offset].split('/')[-2])
-            img_filename = os.path.join(output_dirname, img_filepath)
+            # img_filepath = '/'.join(filenames[offset].split('/')[-2:])
+            # if not os.path.isdir(os.path.join(output_dirname, img_dir)):
+            #     os.makedirs(os.path.join(output_dirname, img_dir))
+            # img_filename = os.path.join(output_dirname, img_filepath)
             img = np.clip(img, 0, 1)
-            skio.imsave(img_filename, np.transpose(img, (1, 2, 0)))
+            # skio.imsave(img_filename, np.transpose(img, (1, 2, 0)))
             offset += 1
             if offset >= len(filenames):
                 break
@@ -390,19 +396,71 @@ def eval_net(split, input_net=srcnn_net, K=5):
     else:
         print 'Not computing accuracy; ground truth unknown for split:', split
 
+
+def reconstruct_imgs(path_to_imgs, input_net=srcnn_net):
     # Stitch together non-overlapping patches with stride 21
-    for patch_dir in patch_directories:
-        path_to_patch_dir = os.path.join(output_dirname, patch_dir)
-        patches = load_patches(path_to_patch_dir)
+    for img_file in os.listdir(path_to_imgs):
+        temp = os.path.join(args.image_root, 'temp/' + img_file[:-4])
+        temp2 = os.path.join(args.image_root, 'temp2')
+        # First, convert image to patches
+        src_img = skio.imread(os.path.join(path_to_imgs, img_file))
+        img_patches = image_to_patches(src_img, 33, 21)
+        if os.path.exists(temp):
+            shutil.rmtree(temp)
+        save_patches(img_patches, temp)
+
+        # Create a text file for the neural network to read
+        filenames = []
+        str_buffer = ''
+        for img in os.listdir(temp):
+            str_buffer += os.path.join('temp/' + img_file[:-4], img) + ' 0\n'
+            filenames.append(img)
+        split_file = to_tempfile(str_buffer)
+
+        # Initialize the neural network and run forward()
+        test_net_file = input_net(split_file, None,
+                                  train=False, with_labels=False)
+        weights_file = snapshot_at_iteration(args.iters)
+        output_dirname = os.path.join(args.image_root, 'output')
+        if not os.path.exists(output_dirname):
+            os.makedirs(output_dirname)
+        net = caffe.Net(test_net_file, weights_file, caffe.TEST)
+        offset = 0
+        # Create a second temp directory for processed patches
+        if os.path.exists(temp2):
+            shutil.rmtree(temp2)
+        os.mkdir(temp2)
+
+        while offset < len(filenames):
+            net_forward = net.forward()
+            imgs = net.blobs['conv3'].data
+            for img in imgs:
+                img = np.clip(img, 0, 1)
+                img_filename = os.path.join(temp2, filenames[offset])
+                skio.imsave(img_filename, np.transpose(img, (1, 2, 0)))
+                offset += 1
+                if offset >= len(filenames):
+                    break
+
+        patches = load_patches(temp2)
         stitched_image = image_from_patches(patches, 21)
+        patch_dir = img_file[:-4]
         skio.imsave(os.path.join(output_dirname, patch_dir + '.png'), stitched_image)
 
+    shutil.rmtree(os.path.join(args.image_root, 'temp'))
+    shutil.rmtree(os.path.join(args.image_root, 'temp2'))
+
 if __name__ == '__main__':
+    if args.reconstruct:
+        print 'Reconstructing images in ' + args.reconstruct
+        reconstruct_imgs(args.reconstruct)
+        exit(0)
+
     print 'Training net...\n'
-    # train_net()
+    train_net()
 
     print '\nTraining complete. Evaluating...\n'
     for split in ('train', 'val', 'test'):
         eval_net(split)
-        print
+
     print 'Evaluation complete.'

@@ -21,6 +21,7 @@ def image_to_patches(img, patch_size, stride):
         return idx
 
     np.apply_along_axis(extract_patch, 0, indices)
+    patches = patches.astype(np.ubyte)
     return patches
 
 
@@ -97,13 +98,14 @@ def load_patches(directory):
     patches_y, patches_x = os.path.splitext(files[-1])[0].split('_')
     y_digits = len(patches_y)
     x_digits = len(patches_x)
-    patches_y = int(patches_y+1)
-    patches_x = int(patches_x+1)
+    patches_y = int(patches_y) + 1
+    patches_x = int(patches_x) + 1
     indices = np.indices((patches_y, patches_x))
 
     patch0 = skio.imread(directory + '/' + files[0])
     rows, cols, ch = patch0.shape
     patches = np.empty((patches_y, patches_x, rows, cols, ch))
+    EXTENSION = files[0][-4:]
 
     def load_helper(idx):
         y, x = idx
