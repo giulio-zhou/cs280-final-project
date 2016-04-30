@@ -23,12 +23,12 @@ do
 done
 
 # Copy all of the image file paths to text files
-for f in $(ls $3/$4/compressed_img)
+for f in $(find $3/$4/compressed_img -name '*.jpg')
 do
-    echo "$4/compressed_img/$f 0" >> $3/$4/$4_img.txt
+    echo "${f#$3/} 0" >> $3/$4/$4_img.txt
 done
 
-for f in $(ls $3/$4/src_img)
+for f in $(find $3/$4/src_img -name '*.png')
 do
-    echo "$4/src_img/$f 0" >> $3/$4/$4_label.txt
+    echo "${f#$3/} 0" >> $3/$4/$4_label.txt
 done

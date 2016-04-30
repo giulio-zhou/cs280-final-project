@@ -4,7 +4,6 @@ import skimage.io as skio
 import sys
 import os
 
-IMG_PREFIX = ''
 EXTENSION = '.png'
 
 def image_to_patches(img, patch_size, stride):
@@ -82,7 +81,7 @@ def save_patches(patches, directory, num_pixels_crop=0):
 
     def save_helper(idx):
         y, x = idx
-        img_file = directory + '/' + IMG_PREFIX + '_' + str(y).zfill(y_digits) + '_' + str(x).zfill(x_digits) + EXTENSION
+        img_file = directory + '/' + str(y).zfill(y_digits) + '_' + str(x).zfill(x_digits) + EXTENSION
         if num_pixels_crop > 0:
             skio.imsave(img_file, patches[y, x][num_pixels_crop:-num_pixels_crop,
                                                 num_pixels_crop:-num_pixels_crop])
@@ -122,8 +121,8 @@ if __name__ == '__main__':
         img_file = sys.argv[1]
         EXTENSION = os.path.splitext(img_file)[-1]
         # Split file path and remove the extension
-        IMG_PREFIX = img_file.split('/')[-1][:-4]
-        save_dir = ('./' + os.path.splitext(img_file)[0]) if len(sys.argv) == 2 else sys.argv[2]
+        prefix = img_file.split('/')[-1][:-4]
+        save_dir = sys.argv[2] + '/' + prefix
         print save_dir
         img = sk.img_as_float(skio.imread(img_file))
         # Make sure black and white images have a third dimension
