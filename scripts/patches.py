@@ -93,7 +93,7 @@ def save_patches(patches, directory, num_pixels_crop=0):
 
 
 def load_patches(directory):
-    files = os.listdir(directory)
+    files = sorted(os.listdir(directory))
     patches_y, patches_x = os.path.splitext(files[-1])[0].split('_')
     y_digits = len(patches_y)
     x_digits = len(patches_x)
