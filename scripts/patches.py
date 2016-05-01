@@ -21,7 +21,6 @@ def image_to_patches(img, patch_size, stride):
         return idx
 
     np.apply_along_axis(extract_patch, 0, indices)
-    patches = patches.astype(np.ubyte)
     return patches
 
 

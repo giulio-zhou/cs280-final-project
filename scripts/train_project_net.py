@@ -6,6 +6,7 @@ import argparse
 import numpy as np
 import os
 import shutil
+import skimage
 import skimage.io as skio
 import tempfile
 import time
@@ -55,6 +56,8 @@ parser.add_argument('--gpu', type=int, default=0,
 parser.add_argument('--reconstruct',
     help='Specify directory of images to reconstruct'
 	 '(if provided, no evaluation or training is done')
+parser.add_argument('--solver_state',
+    help='If given, use existing solver file for training')
 args = parser.parse_args()
 
 # disable most Caffe logging (unless env var $GLOG_minloglevel is already set)
@@ -314,6 +317,8 @@ def train_net(input_net=srcnn_net, with_val_net=False):
         val_net_file = None
     solver_file = miniplaces_solver(train_net_file, val_net_file)
     solver = caffe.get_solver(solver_file)
+    if args.solver_state:
+        solver.restore(args.solver_state)
     outputs = sorted(solver.net.outputs)
     # Want to just display the loss
     outputs = [outputs[-1]]
@@ -404,6 +409,7 @@ def reconstruct_imgs(path_to_imgs, input_net=srcnn_net):
         temp2 = os.path.join(args.image_root, 'temp2')
         # First, convert image to patches
         src_img = skio.imread(os.path.join(path_to_imgs, img_file))
+        src_img = skimage.img_as_float(src_img)
         img_patches = image_to_patches(src_img, 33, 21)
         if os.path.exists(temp):
             shutil.rmtree(temp)
@@ -437,7 +443,7 @@ def reconstruct_imgs(path_to_imgs, input_net=srcnn_net):
             for img in imgs:
                 img = np.clip(img, 0, 1)
                 img_filename = os.path.join(temp2, filenames[offset])
-                skio.imsave(img_filename, np.transpose(img, (1, 2, 0)))
+                skio.imsave(img_filename, np.transpose(img, (1, 2, 0))[:, :, ::-1])
                 offset += 1
                 if offset >= len(filenames):
                     break

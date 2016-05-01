@@ -23,12 +23,12 @@ do
 done
 
 # Copy all of the image file paths to text files
-for f in $(find $3/$4/compressed_img -name '*.jpg')
+for f in $(find $3/$4/compressed_img -name '*.jpg' | sort)
 do
     echo "${f#$3/} 0" >> $3/$4/$4_img.txt
 done
 
-for f in $(find $3/$4/src_img -name '*.png')
+for f in $(find $3/$4/src_img -name '*.bmp' | sort)
 do
     echo "${f#$3/} 0" >> $3/$4/$4_label.txt
 done
