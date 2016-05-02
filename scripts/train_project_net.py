@@ -95,8 +95,8 @@ fc_filler       = dict(type='gaussian', std=0.005)
 # Original AlexNet used the following commented out Gaussian initialization;
 # we'll use the "MSRA" one instead, which scales the Gaussian initialization
 # of a convolutional filter based on its receptive field size.
-conv_filler     = dict(type='gaussian', std=0.001)
-# conv_filler     = dict(type='msra')
+# conv_filler     = dict(type='gaussian', std=0.001)
+conv_filler     = dict(type='msra')
 
 def conv_relu(bottom, ks, nout, stride=1, pad=0, group=1,
               param=learned_param,
@@ -173,7 +173,7 @@ def srcnn(data, labels=None, train=False, param=learned_param,
     n.data = data
     first_conv_weights_param = dict(lr_mult=0.1, decay_mult=1)
     last_conv_weights_param = dict(lr_mult=0.01, decay_mult=1)
-    bias_param = dict(lr_mult=1, decay_mult=1)
+    bias_param = dict(lr_mult=2, decay_mult=0)
     first_conv_param = [first_conv_weights_param, bias_param]
     last_conv_param = [last_conv_weights_param, bias_param]
 
@@ -417,6 +417,9 @@ def reconstruct_imgs(path_to_imgs, input_net=srcnn_net):
         # First, convert image to patches
         src_img = skio.imread(os.path.join(path_to_imgs, img_file))
         src_img = skimage.img_as_float(src_img)
+        if len(src_img.shape) == 2:
+            # Convert gray image to rgb equivalent
+            src_img = skimage.color.gray2rgb(src_img)
         img_patches = image_to_patches(src_img, 33, 21)
         if os.path.exists(temp):
             shutil.rmtree(temp)
@@ -470,7 +473,7 @@ if __name__ == '__main__':
         exit(0)
 
     print 'Training net...\n'
-    train_net()
+    train_net(with_val_net=True)
 
     print '\nTraining complete. Evaluating...\n'
     for split in ('train', 'val', 'test'):
