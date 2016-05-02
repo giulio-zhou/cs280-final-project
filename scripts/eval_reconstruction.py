@@ -46,8 +46,8 @@ def eval_directories(dir_truth, dir_rec, metric):
         name1 = os.path.splitext(files1[i1])[0]
         name2 = os.path.splitext(files2[i2])[0]
         if name1 == name2:
-            img1 = sk.img_as_float(skio.imread(dir_truth + '/' + files1[i1]))
-            img2 = sk.img_as_float(skio.imread(dir_rec + '/' + files2[i2]))
+            img1 = read_img(dir_truth + '/' + files1[i1])
+            img2 = read_img(dir_rec + '/' + files2[i2])
             err = compute_metric(img1, img2, metric)
             print "%s: %f" % (name1, err)
             px = pixel_count(img1, img2)
@@ -58,6 +58,12 @@ def eval_directories(dir_truth, dir_rec, metric):
         i1 += 1
     print "Average: %f" % (total_err / i2)
     print "Weighted average: %f" % (total_weighted_err / total_px)
+
+def read_img(filename):
+    img = sk.img_as_float(skio.imread(filename))
+    if len(img.shape) == 2:
+        img = np.dstack((img, img, img))
+    return img
 
 if __name__ == "__main__":
     if len(sys.argv) >= 3:
