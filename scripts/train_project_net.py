@@ -37,7 +37,7 @@ parser.add_argument('--iter_size', type=int, default=1,
     help=('The number of iterations (batches) over which to average the '
           'gradient computation. Effectively increases the batch size '
           '(--batch) by this factor, but without increasing memory use '))
-parser.add_argument('--lr', type=float, default=0.01,
+parser.add_argument('--lr', type=float, default=0.0000001,
     help='The initial learning rate')
 parser.add_argument('--gamma', type=float, default=0.1,
     help='Factor by which to drop the learning rate')
@@ -58,6 +58,8 @@ parser.add_argument('--reconstruct',
 	 '(if provided, no evaluation or training is done')
 parser.add_argument('--solver_state',
     help='If given, use existing solver file for training')
+parser.add_argument('--eval_only', action='store_true',
+    help='Skip training and do evaluation only')
 args = parser.parse_args()
 
 # disable most Caffe logging (unless env var $GLOG_minloglevel is already set)
@@ -463,7 +465,8 @@ if __name__ == '__main__':
         exit(0)
 
     print 'Training net...\n'
-    train_net()
+    if not args.eval_only:
+        train_net()
 
     print '\nTraining complete. Evaluating...\n'
     for split in ('train', 'val', 'test'):
