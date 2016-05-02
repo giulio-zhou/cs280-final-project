@@ -97,7 +97,7 @@ fc_filler       = dict(type='gaussian', std=0.005)
 # Original AlexNet used the following commented out Gaussian initialization;
 # we'll use the "MSRA" one instead, which scales the Gaussian initialization
 # of a convolutional filter based on its receptive field size.
-# conv_filler     = dict(type='gaussian', std=0.01)
+# conv_filler     = dict(type='gaussian', std=0.001)
 conv_filler     = dict(type='msra')
 
 def conv_relu(bottom, ks, nout, stride=1, pad=0, group=1,
@@ -173,10 +173,17 @@ def srcnn(data, labels=None, train=False, param=learned_param,
           with_labels=True):
     n = caffe.NetSpec()
     n.data = data
-    conv_kwargs = dict(param=param, train=train)
-    n.conv1, n.relu1 = conv_relu(n.data, 9, 64, **conv_kwargs)
-    n.conv2, n.relu2 = conv_relu(n.relu1, 1, 32, **conv_kwargs)
-    n.conv3, _unused_= conv_relu(n.relu2, 5, 3, **conv_kwargs)
+    first_conv_weights_param = dict(lr_mult=0.1, decay_mult=1)
+    last_conv_weights_param = dict(lr_mult=0.01, decay_mult=1)
+    bias_param = dict(lr_mult=2, decay_mult=0)
+    first_conv_param = [first_conv_weights_param, bias_param]
+    last_conv_param = [last_conv_weights_param, bias_param]
+
+    first_conv_kwargs = dict(param=first_conv_param, train=train)
+    last_conv_kwargs = dict(param=last_conv_param, train=train)
+    n.conv1, n.relu1 = conv_relu(n.data, 9, 64, **first_conv_kwargs)
+    n.conv2, n.relu2 = conv_relu(n.relu1, 1, 32, **first_conv_kwargs)
+    n.conv3, _unused_= conv_relu(n.relu2, 5, 3, **last_conv_kwargs)
     preds = n.conv3
     if with_labels:
         n.label = labels
@@ -412,6 +419,9 @@ def reconstruct_imgs(path_to_imgs, input_net=srcnn_net):
         # First, convert image to patches
         src_img = skio.imread(os.path.join(path_to_imgs, img_file))
         src_img = skimage.img_as_float(src_img)
+        if len(src_img.shape) == 2:
+            # Convert gray image to rgb equivalent
+            src_img = skimage.color.gray2rgb(src_img)
         img_patches = image_to_patches(src_img, 33, 21)
         if os.path.exists(temp):
             shutil.rmtree(temp)
